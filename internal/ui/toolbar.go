@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -14,12 +13,13 @@ import (
 
 // Toolbar is the top connection bar + operation buttons.
 type Toolbar struct {
-	app       *App
-	hostEntry *widget.Entry
-	oidEntry  *widget.Entry
-	commEntry *widget.Entry
-	verSelect *widget.Select
-	wrap      *fyne.Container
+	app        *App
+	hostEntry  *widget.Entry
+	oidEntry   *widget.Entry
+	commEntry  *widget.Entry
+	verSelect  *widget.Select
+	connStatus *widget.RichText
+	wrap       *fyne.Container
 }
 
 // NewToolbar creates the toolbar and wires button callbacks.
@@ -42,9 +42,15 @@ func NewToolbar(a *App) *Toolbar {
 	t.verSelect.SetSelected("v2c")
 
 	connectBtn := widget.NewButtonWithIcon("Connect", theme.LoginIcon(), func() {
-		a.setStatus(fmt.Sprintf("Target: %s  community: %s  version: %s",
-			t.hostEntry.Text, t.commEntry.Text, t.verSelect.Selected))
+		a.Connect()
 	})
+
+	t.connStatus = widget.NewRichText(
+		&widget.TextSegment{
+			Text:  "● Ready",
+			Style: widget.RichTextStyle{ColorName: theme.ColorNamePlaceHolder},
+		},
+	)
 
 	getBtn := widget.NewButtonWithIcon("GET", theme.SearchIcon(), func() {
 		a.ExecGet(t.target(), t.oidEntry.Text)
@@ -75,7 +81,7 @@ func NewToolbar(a *App) *Toolbar {
 	commGroup := container.NewBorder(
 		nil, nil,
 		container.NewHBox(widget.NewLabel("Ver:"), t.verSelect, widget.NewLabel("Community:")),
-		connectBtn,
+		container.NewHBox(connectBtn, t.connStatus),
 		t.commEntry,
 	)
 	connectionRow := container.NewGridWithColumns(2, hostGroup, commGroup)
@@ -108,6 +114,33 @@ func (t *Toolbar) SetHost(host string) {
 // SetCommunity updates the community field.
 func (t *Toolbar) SetCommunity(community string) {
 	t.commEntry.SetText(community)
+}
+
+// SetOID populates the OID entry (called when a MIB tree node is selected).
+func (t *Toolbar) SetOID(oid string) {
+	t.oidEntry.SetText(oid)
+}
+
+// SetConnectionStatus updates the colored status indicator next to the Connect button.
+func (t *Toolbar) SetConnectionStatus(state connState, msg string) {
+	colorName := theme.ColorNamePlaceHolder
+	switch state {
+	case connOK:
+		colorName = theme.ColorNameSuccess
+	case connFail:
+		colorName = theme.ColorNameError
+	case connBusy:
+		colorName = theme.ColorNameWarning
+	}
+	fyne.Do(func() {
+		t.connStatus.Segments = []widget.RichTextSegment{
+			&widget.TextSegment{
+				Text:  "● " + msg,
+				Style: widget.RichTextStyle{ColorName: colorName},
+			},
+		}
+		t.connStatus.Refresh()
+	})
 }
 
 // target builds a snmp.Target from the current toolbar values.

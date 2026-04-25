@@ -14,7 +14,6 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/amos-mib/amos/internal/mib"
@@ -22,17 +21,28 @@ import (
 	"github.com/amos-mib/amos/internal/snmp"
 )
 
+// connState represents the SNMP connection indicator state.
+type connState int
+
+const (
+	connIdle connState = iota
+	connOK
+	connFail
+	connBusy
+)
+
 // App is the root application controller.
 type App struct {
-	fyneApp    fyne.App
-	win        fyne.Window
-	loader     *mib.Loader
-	mibTree    *MIBTree
-	results    *ResultsTable
-	detail     *DetailPanel
-	toolbar    *Toolbar
-	statusBar  *widget.Label
-	cancelOp   context.CancelFunc
+	fyneApp   fyne.App
+	win       fyne.Window
+	loader    *mib.Loader
+	mibTree   *MIBTree
+	results   *ResultsTable
+	detail    *DetailPanel
+	toolbar   *Toolbar
+	statusBar *widget.Label
+	activity  *widget.Activity
+	cancelOp  context.CancelFunc
 }
 
 // NewApp creates and wires all UI components.
@@ -49,9 +59,13 @@ func NewApp(bundleMIBDir string) *App {
 	a.detail = NewDetailPanel()
 	a.statusBar = widget.NewLabel("Ready.")
 	a.statusBar.Wrapping = fyne.TextTruncate
+	a.activity = widget.NewActivity()
 
 	a.mibTree = NewMIBTree(func(n *mib.Node) {
 		a.detail.SetNode(n)
+		if a.toolbar != nil {
+			a.toolbar.SetOID(n.NumericOID)
+		}
 	})
 
 	a.toolbar = NewToolbar(a)
@@ -71,9 +85,10 @@ func (a *App) buildLayout() {
 	mainSplit := container.NewHSplit(a.mibTree.Container(), rightSplit)
 	mainSplit.SetOffset(0.25)
 
+	statusRow := container.NewBorder(nil, nil, a.activity, nil, a.statusBar)
 	content := container.NewBorder(
-		a.toolbar.Container(), // top
-		container.NewHBox(layout.NewSpacer(), a.statusBar), // bottom status bar
+		a.toolbar.Container(),
+		statusRow,
 		nil, nil,
 		mainSplit,
 	)
@@ -106,6 +121,50 @@ func (a *App) setStatus(msg string) {
 	fyne.Do(func() { a.statusBar.SetText(msg) })
 }
 
+func (a *App) setActive(active bool) {
+	fyne.Do(func() {
+		if active {
+			a.activity.Start()
+		} else {
+			a.activity.Stop()
+		}
+	})
+}
+
+// Connect tests connectivity to the configured host by fetching sysDescr.0.
+func (a *App) Connect() {
+	target := a.toolbar.target()
+	if strings.TrimSpace(target.Host) == "" {
+		a.setStatus("Enter a host before connecting.")
+		return
+	}
+	a.toolbar.SetConnectionStatus(connBusy, "Connecting…")
+	a.setStatus("Connecting to " + target.Host + "…")
+	a.setActive(true)
+
+	go func() {
+		defer a.setActive(false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*snmp.DefaultTimeout)
+		defer cancel()
+		client := snmp.GetClient(target)
+		results, err := client.Get(ctx, []string{"1.3.6.1.2.1.1.1.0"})
+		if err != nil {
+			a.toolbar.SetConnectionStatus(connFail, "Failed")
+			a.setStatus("Connection failed: " + err.Error())
+			return
+		}
+		sysDescr := ""
+		if len(results) > 0 {
+			sysDescr = fmt.Sprintf("%v", results[0].Value)
+			if len(sysDescr) > 60 {
+				sysDescr = sysDescr[:60] + "…"
+			}
+		}
+		a.toolbar.SetConnectionStatus(connOK, target.Host)
+		a.setStatus(fmt.Sprintf("Connected — %s", sysDescr))
+	}()
+}
+
 // LoadMIBFile opens a file dialog and adds the chosen MIB file's directory.
 func (a *App) LoadMIBFile() {
 	dialog.ShowFileOpen(func(r fyne.URIReadCloser, err error) {
@@ -129,8 +188,10 @@ func (a *App) ExecGet(target snmp.Target, oid string) {
 	a.cancelOp = cancel
 	a.results.Clear()
 	a.setStatus("GET " + oid + " …")
+	a.setActive(true)
 
 	go func() {
+		defer a.setActive(false)
 		defer cancel()
 		client := snmp.GetClient(target)
 		results, err := client.Get(ctx, []string{oid})
@@ -153,8 +214,10 @@ func (a *App) ExecGetNext(target snmp.Target, oid string) {
 	a.cancelOp = cancel
 	a.results.Clear()
 	a.setStatus("GETNEXT " + oid + " …")
+	a.setActive(true)
 
 	go func() {
+		defer a.setActive(false)
 		defer cancel()
 		client := snmp.GetClient(target)
 		results, err := client.GetNext(ctx, []string{oid})
@@ -177,8 +240,10 @@ func (a *App) ExecGetBulk(target snmp.Target, oid string) {
 	a.cancelOp = cancel
 	a.results.Clear()
 	a.setStatus("GETBULK " + oid + " …")
+	a.setActive(true)
 
 	go func() {
+		defer a.setActive(false)
 		defer cancel()
 		client := snmp.GetClient(target)
 		results, err := client.GetBulk(ctx, []string{oid}, 0, snmp.DefaultMaxReps)
@@ -201,8 +266,10 @@ func (a *App) ExecWalk(target snmp.Target, oid string) {
 	a.cancelOp = cancel
 	a.results.Clear()
 	a.setStatus("WALK " + oid + " …")
+	a.setActive(true)
 
 	go func() {
+		defer a.setActive(false)
 		defer cancel()
 		client := snmp.GetClient(target)
 		ch, errCh := client.Walk(ctx, oid)
@@ -233,8 +300,10 @@ func (a *App) ExecSet(target snmp.Target, oid string) {
 		a.cancelOp = cancel
 		a.results.Clear()
 		a.setStatus("SET " + oid + " …")
+		a.setActive(true)
 
 		go func() {
+			defer a.setActive(false)
 			defer cancel()
 			client := snmp.GetClient(target)
 			goPDUs := toGoPDUs(pduList)
