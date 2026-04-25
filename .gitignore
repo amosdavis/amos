@@ -1,0 +1,18 @@
+# Binaries
+amos
+*.exe
+*.test
+
+# Build output
+/bin/
+/dist/
+
+# Go workspace
+vendor/
+*.sum.bak
+
+# Editor / OS
+.idea/
+.vscode/
+*.DS_Store
+*.swp
