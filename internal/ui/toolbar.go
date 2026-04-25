@@ -28,7 +28,7 @@ func NewToolbar(a *App) *Toolbar {
 
 	t.hostEntry = widget.NewEntry()
 	t.hostEntry.SetPlaceHolder("Host / IP")
-	t.hostEntry.SetText("demo.snmplabs.com")
+	t.hostEntry.SetText("demo.pysnmp.com")
 
 	t.commEntry = widget.NewEntry()
 	t.commEntry.SetPlaceHolder("Community")

@@ -11,11 +11,13 @@ A cross-platform GUI MIB browser for SNMP agents, built with Go + Fyne.
 - OID detail view (name, syntax, access level, description)
 
 ## Public Test Agents
-| Host                                    | Version | Community | Notes              |
-|-----------------------------------------|---------|-----------|--------------------|
-| `demo.snmplabs.com`                     | v2c     | public    | snmpsim simulator  |
-| `demo.pysnmp.com`                       | v2c     | public    | PySNMP demo agent  |
-| `snmp.live.gambitcommunications.com`    | v2c     | public    | Cisco device sim   |
+| Host                                    | Version | Community | Status  | Notes              |
+|-----------------------------------------|---------|-----------|---------|--------------------|
+| `demo.pysnmp.com`                       | v2c     | public    | ✅ Live  | PySNMP .NET agent  |
+| `demo.snmplabs.com`                     | v2c     | public    | ❌ Dead  | snmpsim (timeout)  |
+| `snmp.live.gambitcommunications.com`    | v2c     | public    | ❌ Dead  | Cisco sim (timeout)|
+
+The app defaults to `demo.pysnmp.com`.
 
 ## Build
 
