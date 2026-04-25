@@ -40,9 +40,10 @@ type App struct {
 	results   *ResultsTable
 	detail    *DetailPanel
 	toolbar   *Toolbar
-	statusBar *widget.Label
-	activity  *widget.Activity
-	cancelOp  context.CancelFunc
+	statusBar    *widget.Label
+	activity     *widget.Activity
+	walkProgress *WalkProgress
+	cancelOp     context.CancelFunc
 }
 
 // NewApp creates and wires all UI components.
@@ -60,6 +61,7 @@ func NewApp(bundleMIBDir string) *App {
 	a.statusBar = widget.NewLabel("Ready.")
 	a.statusBar.Wrapping = fyne.TextTruncate
 	a.activity = widget.NewActivity()
+	a.walkProgress = NewWalkProgress()
 
 	a.mibTree = NewMIBTree(func(n *mib.Node) {
 		a.detail.SetNode(n)
@@ -85,7 +87,10 @@ func (a *App) buildLayout() {
 	mainSplit := container.NewHSplit(a.mibTree.Container(), rightSplit)
 	mainSplit.SetOffset(0.25)
 
-	statusRow := container.NewBorder(nil, nil, a.activity, nil, a.statusBar)
+	statusRow := container.NewVBox(
+		container.NewBorder(nil, nil, a.activity, nil, a.statusBar),
+		a.walkProgress.Container(),
+	)
 	content := container.NewBorder(
 		a.toolbar.Container(),
 		statusRow,
@@ -270,13 +275,16 @@ func (a *App) ExecWalk(target snmp.Target, oid string) {
 
 	go func() {
 		defer a.setActive(false)
+		defer a.walkProgress.Stop()
 		defer cancel()
+		a.walkProgress.Start(oid)
 		client := snmp.GetClient(target)
 		ch, errCh := client.Walk(ctx, oid)
 		count := 0
 		for r := range ch {
 			a.results.AppendResult(r, a.loader)
 			count++
+			a.walkProgress.Update(count, r.OID)
 		}
 		if err := <-errCh; err != nil && err != context.Canceled {
 			a.setStatus(fmt.Sprintf("WALK error: %v", err))
@@ -375,8 +383,23 @@ func validateInputs(target snmp.Target, oid string) error {
 	if strings.TrimSpace(target.Host) == "" {
 		return fmt.Errorf("host is required")
 	}
-	if strings.TrimSpace(oid) == "" {
+	cleanOID := strings.TrimSpace(oid)
+	if cleanOID == "" {
 		return fmt.Errorf("OID is required")
+	}
+	// A purely numeric OID without dots (e.g. "1") is a single-component identifier
+	// and cannot be marshalled by SNMP. Symbolic names (e.g. "sysDescr") are fine.
+	if !strings.Contains(cleanOID, ".") {
+		allDigits := true
+		for _, c := range cleanOID {
+			if c < '0' || c > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return fmt.Errorf("OID %q is not routable — select a subtree (e.g. 1.3.6.1.2.1)", cleanOID)
+		}
 	}
 	return nil
 }
