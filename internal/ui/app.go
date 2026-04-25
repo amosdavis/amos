@@ -103,8 +103,7 @@ func (a *App) Run() {
 }
 
 func (a *App) setStatus(msg string) {
-	// Fyne UI updates must run on the main goroutine.
-	a.statusBar.SetText(msg)
+	fyne.Do(func() { a.statusBar.SetText(msg) })
 }
 
 // LoadMIBFile opens a file dialog and adds the chosen MIB file's directory.

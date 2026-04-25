@@ -71,12 +71,14 @@ func NewToolbar(a *App) *Toolbar {
 		a.LoadMIBFile()
 	})
 
-	connectionRow := container.NewBorder(
+	hostGroup := container.NewBorder(nil, nil, widget.NewLabel("Host:"), nil, t.hostEntry)
+	commGroup := container.NewBorder(
 		nil, nil,
-		container.NewHBox(widget.NewLabel("Host:")),
-		container.NewHBox(widget.NewLabel("Ver:"), t.verSelect, widget.NewLabel("Community:"), t.commEntry, connectBtn),
-		t.hostEntry,
+		container.NewHBox(widget.NewLabel("Ver:"), t.verSelect, widget.NewLabel("Community:")),
+		connectBtn,
+		t.commEntry,
 	)
+	connectionRow := container.NewGridWithColumns(2, hostGroup, commGroup)
 	oidRow := container.NewBorder(
 		nil, nil,
 		widget.NewLabel("OID:"),

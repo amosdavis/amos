@@ -84,7 +84,7 @@ func (rt *ResultsTable) Clear() {
 	rt.mu.Lock()
 	rt.rows = nil
 	rt.mu.Unlock()
-	rt.table.Refresh()
+	fyne.Do(func() { rt.table.Refresh() })
 }
 
 // SetResults replaces all rows with the given results.
@@ -95,7 +95,7 @@ func (rt *ResultsTable) SetResults(results []snmp.Result, loader *mib.Loader) {
 		rt.rows = append(rt.rows, toRow(r, loader))
 	}
 	rt.mu.Unlock()
-	rt.table.Refresh()
+	fyne.Do(func() { rt.table.Refresh() })
 }
 
 // AppendResult adds a single result (used during streaming WALK).
@@ -103,7 +103,7 @@ func (rt *ResultsTable) AppendResult(r snmp.Result, loader *mib.Loader) {
 	rt.mu.Lock()
 	rt.rows = append(rt.rows, toRow(r, loader))
 	rt.mu.Unlock()
-	rt.table.Refresh()
+	fyne.Do(func() { rt.table.Refresh() })
 }
 
 func toRow(r snmp.Result, loader *mib.Loader) row {

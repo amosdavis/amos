@@ -70,7 +70,7 @@ func (m *MIBTree) SetTree(root *mib.Node) {
 	if root != nil {
 		m.buildIndex("", root)
 	}
-	m.tree.Refresh()
+	fyne.Do(func() { m.tree.Refresh() })
 }
 
 func (m *MIBTree) buildIndex(parentID widget.TreeNodeID, n *mib.Node) {
