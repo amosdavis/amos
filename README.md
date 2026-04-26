@@ -1,4 +1,4 @@
-# AMOS — Amos MIB Operating System
+# AMOS — AMOS MIB Operating System *(recursive acronym, not an actual OS)*
 
 A cross-platform GUI MIB browser for SNMP agents, built with Go + Fyne.
 
